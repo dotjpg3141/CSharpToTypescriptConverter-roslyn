@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Collections.Immutable;
 using System.IO;
 using System.Linq;
+using System.Text.RegularExpressions;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
@@ -72,12 +73,7 @@ namespace CSharpToTypescriptConverter.Converter
 			}
 
 			this.mode = GeneratorMode.GenerateCode;
-			foreach (var @class in this.collectedClasses.Values)
-			{
-				this.BeginClass(@class.ClassDeclarations.ToArray());
-				@class.ClassDeclarations.SelectMany(c => c.Members).Consume(VisitMemberDeclaration);
-				this.EndClass();
-			}
+			this.collectedClasses.Values.Consume(VisitCombinedClass);
 		}
 
 		private void VisitCompilationUnit(CompilationUnitSyntax compilationUnit)
@@ -124,24 +120,20 @@ namespace CSharpToTypescriptConverter.Converter
 
 				combinedClass.ClassDeclarations.Add(classDecl);
 			}
-			else
-			{
-				BeginClass(classDecl);
-				classDecl.Members.Consume(VisitMemberDeclaration);
-				EndClass();
-			}
 		}
 
-		private void BeginClass(params ClassDeclarationSyntax[] classDecl)
+		private void VisitCombinedClass(CombinedClass @class)
 		{
-			var @class = this.ConvertClassesToInterfaces ? "interface" : "class";
-			var identifier = RewriteTypeName(classDecl.First().Identifier.Text);
-			this.writer.WriteLine($"export {@class} {identifier} {{");
+			@class.ClassDeclarations.SelectMany(c => c.AttributeLists).Consume(VisitAttributeList);
+			VisitXmlComment(@class.ClassDeclarations.SelectMany(c => c.GetLeadingTrivia()));
+
+			var classType = this.ConvertClassesToInterfaces ? "interface" : "class";
+			var identifier = RewriteTypeName(@class.CSharpName);
+			this.writer.WriteLine($"export {classType} {identifier} {{");
 			this.writer.Indent();
-		}
 
-		private void EndClass()
-		{
+			@class.ClassDeclarations.SelectMany(c => c.Members).Consume(VisitMemberDeclaration);
+
 			this.writer.Unindent();
 			this.writer.WriteLine("}");
 		}
@@ -154,6 +146,9 @@ namespace CSharpToTypescriptConverter.Converter
 			var getter = propertyDecl.AccessorList.Accessors.FirstOrDefault(accessor => accessor.Kind() == SyntaxKind.GetAccessorDeclaration);
 			if (getter == null || IgnoreByModifier(getter.Modifiers, SyntaxKind.PublicKeyword))
 				return;
+
+			propertyDecl.AttributeLists.Consume(VisitAttributeList);
+			VisitXmlComment(propertyDecl.GetLeadingTrivia());
 
 			var name = RewriteMemberName(propertyDecl.Identifier.Text);
 
@@ -312,6 +307,37 @@ namespace CSharpToTypescriptConverter.Converter
 
 			return !modifierKinds.Contains(SyntaxKind.PublicKeyword)
 				&& defaultModifier != SyntaxKind.PublicKeyword;
+		}
+
+		private void VisitXmlComment(IEnumerable<SyntaxTrivia> trivia)
+		{
+			var comments = trivia.Where(
+					t => t.Kind() == SyntaxKind.SingleLineDocumentationCommentTrivia
+					  || t.Kind() == SyntaxKind.MultiLineDocumentationCommentTrivia)
+				.Select(c => c.ToFullString())
+				.ToList();
+
+			if (comments.Any())
+			{
+				var lines = string.Join("\n", comments)
+					.Split(new[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries)
+					.Select(line => "* " + line.Trim().TrimStart('/', '*'))
+					.ToList();
+
+				var comment = $"/**{Environment.NewLine}{string.Join(Environment.NewLine, lines)}{Environment.NewLine}*/";
+				this.writer.WriteLine(comment);
+			}
+		}
+
+		private void VisitAttributeList(AttributeListSyntax attributeList)
+		{
+			foreach (var attribute in attributeList.Attributes)
+			{
+				var attributeText = new Regex(@"[\r\n]+")
+					.Replace(attribute.ToFullString(), Environment.NewLine + "//");
+
+				this.writer.WriteLine($"//{attributeText}");
+			}
 		}
 
 		private enum GeneratorMode
