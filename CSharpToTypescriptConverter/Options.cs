@@ -5,11 +5,20 @@ namespace CSharpToTypescriptConverter
 {
 	public class Options
 	{
-		[Option('i', "input", Required = true, HelpText = "Input files to be processed.")]
+		[Option('i', "input", HelpText = "Input files to be processed.")]
 		public IEnumerable<string> InputFiles { get; set; }
 
+		[Option('d', "input-dir", HelpText = "Input directories. Searches for files with .cs ending.")]
+		public IEnumerable<string> InputDirectories { get; set; }
+
+		[Option('r', "recursice", HelpText = "Search input directories recursively.")]
+		public bool RecursiveInputDirectories { get; set; }
+
 		[Option('o', "output", HelpText = "Output file. Default is stdout")]
-		public string Output { get; set; }
+		public string OutputDirectory { get; set; }
+
+		[Option('v', "verbose", HelpText = "Verbose output")]
+		public bool Verbose { get; set; }
 
 		[Option("camel-case", HelpText = "Make Typescript fields camel case.")]
 		public bool MakeCamelCase { get; set; }

@@ -16,6 +16,7 @@ namespace CSharpToTypescriptConverter.Converter
 		public bool ConvertFieldsToCamelCase { get; set; }
 		public bool ConvertClassesToInterfaces { get; set; }
 		public string CustomTypePrefix { get; set; }
+		public Action<SyntaxNode> OnUnhandledSyntaxNode;
 
 		private readonly IndentWriter writer;
 		private GeneratorMode mode;
@@ -92,7 +93,7 @@ namespace CSharpToTypescriptConverter.Converter
 				case ClassDeclarationSyntax classDecl: VisitClassDeclaration(classDecl); break;
 				case PropertyDeclarationSyntax propertyDecl: VisitPropertyDeclaration(propertyDecl); break;
 				default:
-					UnhandledSyntaxNode(memberDeclaration);
+					this.OnUnhandledSyntaxNode?.Invoke(memberDeclaration);
 					break;
 			}
 		}
@@ -172,7 +173,7 @@ namespace CSharpToTypescriptConverter.Converter
 				case ArrayTypeSyntax arrayType: VisitArrayTypeSyntax(arrayType); break;
 				case GenericNameSyntax genericName: VisitGenericName(genericName); break;
 				default:
-					UnhandledSyntaxNode(type);
+					this.OnUnhandledSyntaxNode?.Invoke(type);
 					this.writer.Write("any");
 					break;
 			}
@@ -214,7 +215,7 @@ namespace CSharpToTypescriptConverter.Converter
 					break;
 
 				default:
-					UnhandledSyntaxNode(predefinedType);
+					this.OnUnhandledSyntaxNode?.Invoke(predefinedType);
 					this.writer.Write(predefinedType.Keyword.Text);
 					break;
 			}
@@ -311,12 +312,6 @@ namespace CSharpToTypescriptConverter.Converter
 
 			return !modifierKinds.Contains(SyntaxKind.PublicKeyword)
 				&& defaultModifier != SyntaxKind.PublicKeyword;
-		}
-
-		private void UnhandledSyntaxNode(SyntaxNode node)
-		{
-			var name = node.GetType().Name;
-			Console.WriteLine($"[WARNING] Unhandled Syntax Node {name}");
 		}
 
 		private enum GeneratorMode

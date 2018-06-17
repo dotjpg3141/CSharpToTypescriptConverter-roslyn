@@ -1,8 +1,10 @@
 ﻿using System;
+using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using CommandLine;
 using CSharpToTypescriptConverter.Converter;
+using Microsoft.CodeAnalysis.CSharp;
 
 namespace CSharpToTypescriptConverter
 {
@@ -21,7 +23,12 @@ namespace CSharpToTypescriptConverter
 					}
 					catch (IOException e)
 					{
-						Console.Error.WriteLine(e);
+						Console.Error.WriteLine(e.Message);
+						exitCode = 8;
+					}
+					catch (SyntaxErrorException e)
+					{
+						Console.Error.WriteLine(e.Message);
 						exitCode = 8;
 					}
 				})
@@ -32,9 +39,24 @@ namespace CSharpToTypescriptConverter
 
 		private static void GenerateSource(Options options)
 		{
-			var useStdOut = string.IsNullOrEmpty(options.Output);
-			var inputFiles = options.InputFiles.Select(File.ReadAllText).ToArray();
-			var output = useStdOut ? Console.Out : new StreamWriter(options.Output);
+			var inputPaths = new List<string>();
+			if (options.InputFiles != null)
+			{
+				inputPaths.AddRange(options.InputFiles);
+			}
+			if (options.InputDirectories != null)
+			{
+				var searchOptions = options.RecursiveInputDirectories
+					? SearchOption.AllDirectories
+					: SearchOption.TopDirectoryOnly;
+
+				inputPaths.AddRange(options.InputDirectories
+					.SelectMany(path => Directory.EnumerateFiles(path, "*.cs", searchOptions)));
+			}
+
+			var useStdOut = string.IsNullOrEmpty(options.OutputDirectory);
+			var inputFiles = inputPaths.Select(File.ReadAllText).ToArray();
+			var output = useStdOut ? (TextWriter)new StringWriter() : new StreamWriter(options.OutputDirectory);
 
 			var generator = new TypeScriptGenerator(output)
 			{
@@ -42,6 +64,11 @@ namespace CSharpToTypescriptConverter
 				ConvertFieldsToCamelCase = options.MakeCamelCase,
 				ConvertClassesToInterfaces = options.MakeInterfaces,
 			};
+
+			if (options.Verbose)
+			{
+				generator.OnUnhandledSyntaxNode += node => Console.Error.WriteLine($"[WARNING] Unhandled syntax node {node.Kind()}");
+			}
 
 			generator.ArrayTypeNames.UnionWith(options.ArrayTypes);
 			foreach (var typeConversion in options.AliasTypes)
@@ -54,10 +81,11 @@ namespace CSharpToTypescriptConverter
 
 			generator.Generate(inputFiles);
 
-			if (!useStdOut)
+			if (useStdOut)
 			{
-				output.Close();
+				Console.WriteLine(output);
 			}
+			output.Close();
 		}
 	}
 }
