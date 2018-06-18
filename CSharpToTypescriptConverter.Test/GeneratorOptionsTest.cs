@@ -69,5 +69,15 @@ export class IFoo {
 ", options => options.CustomTypePrefix = "I");
 		}
 
+		[TestMethod]
+		public void EmptyEnumeTest()
+		{
+			GeneratorHelper.AssertEqual(@"
+public enum Foo {}
+", @"
+export const enum Foo {}
+", options => options.MakeEnumConst = true);
+		}
+
 	}
 }

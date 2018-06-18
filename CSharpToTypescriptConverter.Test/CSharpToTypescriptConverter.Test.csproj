@@ -51,6 +51,7 @@
     <Compile Include="GeneratorAttributesTest.cs" />
     <Compile Include="GeneratorClassDeclarationTest.cs" />
     <Compile Include="GeneratorCommentTest.cs" />
+    <Compile Include="GeneratorEnumDeclaration.cs" />
     <Compile Include="GeneratorErrorTest.cs" />
     <Compile Include="GeneratorHelper.cs" />
     <Compile Include="GeneratorMemberDeclarationTest.cs" />

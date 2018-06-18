@@ -23,6 +23,9 @@ namespace CSharpToTypescriptConverter
 		[Option("camel-case", HelpText = "Make Typescript fields camel case.")]
 		public bool MakeCamelCase { get; set; }
 
+		[Option("const-enum", HelpText = "Make enums const")]
+		public bool ConstEnum { get; set; }
+
 		[Option("interface", HelpText = "Generate Interfaces instead of classes")]
 		public bool MakeInterfaces { get; set; }
 

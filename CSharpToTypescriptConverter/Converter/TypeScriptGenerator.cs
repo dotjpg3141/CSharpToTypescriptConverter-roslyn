@@ -17,6 +17,8 @@ namespace CSharpToTypescriptConverter.Converter
 		public bool ConvertFieldsToCamelCase { get; set; }
 		public bool ConvertClassesToInterfaces { get; set; }
 		public string CustomTypePrefix { get; set; }
+		public bool MakeEnumConst { get; set; }
+
 		public Action<SyntaxNode> OnUnhandledSyntaxNode;
 
 		private readonly IndentWriter writer;
@@ -88,6 +90,7 @@ namespace CSharpToTypescriptConverter.Converter
 				case NamespaceDeclarationSyntax namespaceDecl: VisitNamespace(namespaceDecl); break;
 				case ClassDeclarationSyntax classDecl: VisitClassDeclaration(classDecl); break;
 				case PropertyDeclarationSyntax propertyDecl: VisitPropertyDeclaration(propertyDecl); break;
+				case EnumDeclarationSyntax enumDecl: VisitEnumDelcaration(enumDecl); break;
 				default:
 					this.OnUnhandledSyntaxNode?.Invoke(memberDeclaration);
 					break;
@@ -134,6 +137,47 @@ namespace CSharpToTypescriptConverter.Converter
 
 			@class.ClassDeclarations.SelectMany(c => c.Members).Consume(VisitMemberDeclaration);
 
+			this.writer.Unindent();
+			this.writer.WriteLine("}");
+		}
+
+		private void VisitEnumDelcaration(EnumDeclarationSyntax enumDecl)
+		{
+			if (IgnoreByModifier(enumDecl.Modifiers))
+				return;
+
+			enumDecl.AttributeLists.Consume(VisitAttributeList);
+			VisitXmlComment(enumDecl.GetLeadingTrivia());
+
+			var @const = this.MakeEnumConst ? "const" : "";
+			var name = enumDecl.Identifier;
+
+			this.writer.WriteLine($"export {@const} enum {name} {{");
+			this.writer.Indent();
+			foreach (var enumMember in enumDecl.Members)
+			{
+				this.writer.BeginLine();
+				this.writer.Write(enumMember.Identifier);
+				if (enumMember.EqualsValue != null)
+				{
+					if (enumMember.EqualsValue.Value is LiteralExpressionSyntax literal
+						&& literal.Kind() == SyntaxKind.NumericLiteralExpression
+						&& long.TryParse(literal.Token.Text, out var constValue))
+					{
+						this.writer.Write(" = ");
+						this.writer.Write(constValue);
+					}
+					else
+					{
+						this.OnUnhandledSyntaxNode?.Invoke(enumMember.EqualsValue.Value);
+						this.writer.Write("/*");
+						this.writer.Write(enumMember.EqualsValue.Value);
+						this.writer.Write("*/");
+					}
+				}
+				this.writer.Write(",");
+				this.writer.EndLine();
+			}
 			this.writer.Unindent();
 			this.writer.WriteLine("}");
 		}

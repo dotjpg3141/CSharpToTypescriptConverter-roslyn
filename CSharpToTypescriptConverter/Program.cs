@@ -63,6 +63,7 @@ namespace CSharpToTypescriptConverter
 				CustomTypePrefix = options.TypePrefix,
 				ConvertFieldsToCamelCase = options.MakeCamelCase,
 				ConvertClassesToInterfaces = options.MakeInterfaces,
+				MakeEnumConst = options.ConstEnum,
 			};
 
 			if (options.Verbose)
